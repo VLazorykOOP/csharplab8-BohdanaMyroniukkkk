@@ -1,60 +1,154 @@
-﻿namespace WinFormsLab8
+﻿using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Text.RegularExpressions;
+using System.Threading.Tasks;
+
+public class Lab8T2
 {
-    partial class Form1
+    private string inputFilePath;
+    private string outputFilePath;
+    private List<string> coordinates;
+    private const string CoordinatePattern = @"\d{1,3}\.\d{1,4}[°](N|S),\s*\d{1,3}\.\d{1,4}[°](E|W)";
+
+    public Lab8T2(string inputPath = "input.txt", string outputPath = "output.txt")
     {
-        /// <summary>
-        ///  Required designer variable.
-        /// </summary>
-        private System.ComponentModel.IContainer components = null;
+        inputFilePath = inputPath;
+        outputFilePath = outputPath;
+        coordinates = new List<string>();
+    }
 
-        /// <summary>
-        ///  Clean up any resources being used.
-        /// </summary>
-        /// <param name="disposing">true if managed resources should be disposed; otherwise, false.</param>
-        protected override void Dispose(bool disposing)
+    public async Task Run()
+    {
+        try
         {
-            if (disposing && (components != null))
+            // Виконуємо завдання асинхронно
+            await Task.WhenAll(
+                ReadAndExtractCoordinatesAsync(),
+                Task.Run(() => Console.WriteLine("Початок обробки файлу..."))
+            );
+
+            // Записуємо координати у вихідний файл
+            await WriteCoordinatesToFileAsync();
+
+            // Виводимо кількість знайдених координат
+            Console.WriteLine($"\nЗнайдено координат: {coordinates.Count}");
+
+            // Інтерактивна частина: заміна або видалення координат
+            await ProcessUserCommandsAsync();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Помилка: {ex.Message}");
+        }
+    }
+
+    private async Task ReadAndExtractCoordinatesAsync()
+    {
+        if (!File.Exists(inputFilePath))
+        {
+            throw new FileNotFoundException("Вхідний файл не знайдено.");
+        }
+
+        string text = await File.ReadAllTextAsync(inputFilePath);
+        var matches = Regex.Matches(text, CoordinatePattern);
+
+        coordinates.Clear();
+        foreach (Match match in matches)
+        {
+            coordinates.Add(match.Value);
+        }
+    }
+
+    private async Task WriteCoordinatesToFileAsync()
+    {
+        await File.WriteAllLinesAsync(outputFilePath, coordinates);
+        Console.WriteLine($"Координати записано у файл: {outputFilePath}");
+    }
+
+    private async Task ProcessUserCommandsAsync()
+    {
+        while (true)
+        {
+            Console.WriteLine("\nВиберіть дію:");
+            Console.WriteLine("1. Замінити координати");
+            Console.WriteLine("2. Видалити координати");
+            Console.WriteLine("3. Вийти");
+            Console.Write("Ваш вибір (1-3): ");
+
+            string choice = Console.ReadLine();
+
+            if (choice == "3") break;
+
+            if (choice == "1" || choice == "2")
             {
-                components.Dispose();
+                Console.Write("Введіть координати для обробки (наприклад, 40.7128°N, 74.0060°W): ");
+                string target = Console.ReadLine();
+
+                if (!Regex.IsMatch(target, CoordinatePattern))
+                {
+                    Console.WriteLine("Невірний формат координат!");
+                    continue;
+                }
+
+                if (choice == "1")
+                {
+                    Console.Write("Введіть нові координати: ");
+                    string replacement = Console.ReadLine();
+                    if (!Regex.IsMatch(replacement, CoordinatePattern))
+                    {
+                        Console.WriteLine("Невірний формат нових координат!");
+                        continue;
+                    }
+
+                    await ReplaceCoordinatesAsync(target, replacement);
+                }
+                else
+                {
+                    await RemoveCoordinatesAsync(target);
+                }
             }
-            base.Dispose(disposing);
+            else
+            {
+                Console.WriteLine("Невірний вибір!");
+            }
         }
+    }
 
-        #region Windows Form Designer generated code
-
-        /// <summary>
-        ///  Required method for Designer support - do not modify
-        ///  the contents of this method with the code editor.
-        /// </summary>
-        private void InitializeComponent()
+    private async Task ReplaceCoordinatesAsync(string target, string replacement)
+    {
+        int index = coordinates.IndexOf(target);
+        if (index >= 0)
         {
-            this.label1 = new System.Windows.Forms.Label();
-            this.SuspendLayout();
-            // 
-            // label1
-            // 
-            this.label1.AutoSize = true;
-            this.label1.Location = new System.Drawing.Point(180, 9);
-            this.label1.Name = "label1";
-            this.label1.Size = new System.Drawing.Size(35, 15);
-            this.label1.TabIndex = 0;
-            this.label1.Text = "Lab 8";
-            // 
-            // Form1
-            // 
-            this.AutoScaleDimensions = new System.Drawing.SizeF(7F, 15F);
-            this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
-            this.ClientSize = new System.Drawing.Size(800, 450);
-            this.Controls.Add(this.label1);
-            this.Name = "Form1";
-            this.Text = "Form1";
-            this.ResumeLayout(false);
-            this.PerformLayout();
-
+            coordinates[index] = replacement;
+            await WriteCoordinatesToFileAsync();
+            Console.WriteLine($"Координати {target} замінено на {replacement}.");
         }
+        else
+        {
+            Console.WriteLine($"Координати {target} не знайдено.");
+        }
+    }
 
-        #endregion
+    private async Task RemoveCoordinatesAsync(string target)
+    {
+        if (coordinates.Remove(target))
+        {
+            await WriteCoordinatesToFileAsync();
+            Console.WriteLine($"Координати {target} видалено.");
+        }
+        else
+        {
+            Console.WriteLine($"Координати {target} не знайдено.");
+        }
+    }
+}
 
-        private Label label1;
+class Program
+{
+    static async Task Main(string[] args)
+    {
+        Lab8T2 lab8task2 = new Lab8T2();
+        await lab8task2.Run();
     }
 }
